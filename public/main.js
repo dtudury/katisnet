@@ -36,31 +36,38 @@ class Ball {
     this.x += this.dx
     this.y += this.dy
   }
+  toString () {
+    return `{ ${this.i} [ ${this.connections.map(ball => ball.i).join(', ')} ] }`
+  }
 }
 
-const balls = []
-for (let i = 0; i < 20; i++) {
-  balls.push(new Ball(i))
-}
-for (let i = 0; i < 20; i++) {
-  let pairs = new Set()
-  while (pairs.size < 2) {
-    let j = Math.floor(Math.random() * 20)
-    if (j !== i && balls[j].connections.indexOf(balls[i]) === -1) {
-      pairs.add(j)
-    }
+const balls = cloneBalls([])
+
+function cloneBalls (balls) {
+  let cloned = []
+  for (let i = 0; i < 20; i++) {
+    cloned.push(new Ball(i))
   }
-  pairs.forEach(j => {
-    balls[i].connections.push(balls[j])
-    balls[j].connections.push(balls[i])
+  balls.forEach((ball, index) => {
+    cloned[index].connections = ball.connections.map(connection => cloned[connection.i])
   })
+  return cloned
+}
+
+function printBalls (balls) {
+  console.log(balls.map(ball => ball.toString()).join(', '))
 }
 
 function drawBall (ctx, ball) {
   ctx.beginPath()
   ctx.arc(ball.x, ball.y, 10, 0, 2 * Math.PI)
-  ctx.arc(ball.x, ball.y, 9, 0, 2 * Math.PI, true)
   ctx.closePath()
+  if (ball.i === 0) {
+    ctx.fillStyle = 'red'
+  } else {
+    ctx.fillStyle = 'black'
+    ctx.arc(ball.x, ball.y, 9, 0, 2 * Math.PI, true)
+  }
   ctx.fill()
 }
 
@@ -96,12 +103,40 @@ function draw () {
   window.requestAnimationFrame(draw)
 }
 
+function scoreFrom (ball) {
+  let complete = new Set()
+  let processing = new Set([ball])
+  let score = 0
+  let value = 1
+  let runs = 0
+  while (processing.size && runs++ < 100) {
+    complete = new Set([...complete, ...processing])
+    let next = new Set()
+    processing.forEach(ball => {
+      ball.connections.forEach(connection => {
+        if (!complete.has(connection)) {
+          score += value
+          next.add(connection)
+        }
+      })
+    })
+    processing = next
+    value *= 0.5
+  }
+  // const sortedBalls = [...balls].sort((a, b) => a.connections.length - b.connections.length)
+  // printBalls(sortedBalls)
+  console.log(score, complete.size, runs)
+}
+
+const first = balls[0]
+
 function improve () {
-  const sortedBalls = balls.sort((a, b) => a.connections.length - b.connections.length)
+  const sortedBalls = [...balls].sort((a, b) => a.connections.length - b.connections.length)
   let ball
   if (Math.random() > 0.5) {
     ball = sortedBalls[sortedBalls.length - 1]
     while (ball.connections.length > 3) {
+      scoreFrom(first)
       const connection = ball.connections[Math.floor(Math.random() * ball.connections.length)]
       ball.connections.splice(ball.connections.indexOf(connection), 1)
       connection.connections.splice(connection.connections.indexOf(ball), 1)
@@ -113,12 +148,13 @@ function improve () {
       if (newConnection !== ball && ball.connections.indexOf(newConnection) === -1) {
         ball.connections.push(newConnection)
         newConnection.connections.push(ball)
+        scoreFrom(first)
       }
     }
   }
 }
 
-setInterval(improve, 1000)
+setInterval(improve, 10)
 
 document.body.onresize = draw
 draw()
